@@ -1,0 +1,90 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+/* Design tokens: values and contrast ratios in docs/04-design-tokens.md. */
+:root {
+  color-scheme: light;
+  --ufe-brand: #012db3;
+  --ufe-brand-hover: #00238c;
+  --ufe-brand-soft: #e6eaf7;
+  --ufe-brand-ring: #ccd5f0;
+  --ufe-surface: #ffffff;
+  --ufe-surface-sunken: #ededed;
+  --ufe-surface-muted: #f5f5f5;
+  --ufe-surface-raised: #eeeeee;
+  --ufe-surface-warm: #fef1d6;
+  --ufe-ink: #212121;
+  --ufe-ink-secondary: #434343;
+  --ufe-ink-chip: #525151;
+  --ufe-ink-muted: #707070;
+  --ufe-ink-placeholder: #5e5e5e;
+  --ufe-ink-inverse: #ffffff;
+  --ufe-line: #e1e1e1;
+  --ufe-progress-from: #4477c3;
+  --ufe-progress-to: #5db173;
+  --ufe-progress-track: #d4def8;
+  --ufe-grade-a-bg: #dcfce7;
+  --ufe-grade-a-fg: #14532d;
+  --ufe-grade-b-bg: #e6eaf7;
+  --ufe-grade-b-fg: #012db3;
+  --ufe-grade-c-bg: #fef3c7;
+  --ufe-grade-c-fg: #713f12;
+  --ufe-grade-f-bg: #fee2e2;
+  --ufe-grade-f-fg: #991b1b;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ufe-brand: #2747d1;
+  --ufe-brand-hover: #3a5be6;
+  --ufe-brand-soft: #232a45;
+  --ufe-brand-ring: #3b4a7a;
+  --ufe-surface: #16181d;
+  --ufe-surface-sunken: #0f1115;
+  --ufe-surface-muted: #22252c;
+  --ufe-surface-raised: #22252c;
+  --ufe-surface-warm: #3a3320;
+  --ufe-ink: #ececec;
+  --ufe-ink-secondary: #c9c9c9;
+  --ufe-ink-chip: #bdbdbd;
+  --ufe-ink-muted: #a3a3a3;
+  --ufe-ink-placeholder: #9a9a9a;
+  --ufe-line: #2c3038;
+  --ufe-progress-track: #2a3350;
+  --ufe-grade-a-bg: #12372a;
+  --ufe-grade-a-fg: #a7f3d0;
+  --ufe-grade-b-bg: #232a45;
+  --ufe-grade-b-fg: #b9c6ff;
+  --ufe-grade-c-bg: #3b2f12;
+  --ufe-grade-c-fg: #fde68a;
+  --ufe-grade-f-bg: #3f1717;
+  --ufe-grade-f-fg: #fecaca;
+}
+
+@layer base {
+  html {
+    background: var(--ufe-surface-sunken);
+  }
+  body {
+    background: var(--ufe-surface);
+    color: var(--ufe-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ufe-brand);
+    outline-offset: 2px;
+  }
+  /* Active nav text in dark mode needs a lighter blue than the button fill. */
+  :root[data-theme="dark"] .text-brand {
+    color: #8ea4ff;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

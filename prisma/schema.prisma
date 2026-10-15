@@ -1,0 +1,697 @@
+// UFE Unified Moodle Hub — hub database schema.
+//
+// This database is a student-scoped PROJECTION of Moodle and the university
+// registry (systems of record), plus data the hub owns itself (tickets,
+// lost & found, office hours, notifications). See docs/02-database-schema.md.
+//
+// Conventions
+// - Primary keys are UUIDs. External ids (moodle*, registry*) are unique.
+// - Audit fields: createdAt, updatedAt, createdById. Soft delete: deletedAt.
+//   Projection rows mirrored from upstream use syncedAt instead of createdById.
+// - Every per-student table carries userId and is protected by PostgreSQL
+//   row-level security in production (policies live in SQL migrations).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum UserRole {
+  STUDENT
+  INSTRUCTOR
+  STAFF
+  ADMIN
+}
+
+enum Locale {
+  mn
+  en
+}
+
+enum Semester {
+  AUTUMN // Намар
+  SPRING // Хавар
+  SUMMER // Зун
+}
+
+enum CourseStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum HeaderPattern {
+  TEAL_WAVES
+  PURPLE_LOWPOLY
+  GRAY_HEXAGONS
+  GREEN_CIRCLES
+  BLUE_CIRCLES
+  PINK_DIAMONDS
+}
+
+/// How the course card renders its footer. See docs/00-assumptions.md §5.
+enum AccessStatus {
+  PENDING // enrolment exists but has not started yet
+  NOT_STARTED // enrolled, never opened the course → "Get access →"
+  IN_PROGRESS // opened, completion tracking on → progress bar
+  COMPLETED // completion = 100 %
+  ACTIVE_UNTRACKED // opened, completion tracking off → no footer
+  SUSPENDED
+}
+
+enum EnrollmentRole {
+  STUDENT
+  INSTRUCTOR
+  TEACHING_ASSISTANT
+}
+
+enum GradeSource {
+  MOODLE // provisional, live
+  REGISTRY // official, posted
+}
+
+enum AssignmentType {
+  ASSIGNMENT
+  QUIZ
+  PROJECT
+  MIDTERM
+  FINAL
+  PARTICIPATION
+  LAB
+}
+
+enum ExamType {
+  MIDTERM
+  FINAL
+  RETAKE
+  QUIZ
+  PRACTICAL
+}
+
+enum SessionType {
+  LECTURE
+  SEMINAR
+  LAB
+}
+
+enum AnnouncementSource {
+  DEPARTMENT
+  ACADEMIC_REGISTRY
+  STUDENT_EVENTS
+  COURSE
+  SYSTEM
+}
+
+enum AnnouncementCategory {
+  ACADEMIC
+  EXAM
+  REGISTRATION
+  EVENT
+  SERVICE
+  EMERGENCY
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum NotificationKind {
+  COURSE_ALERT
+  GRADE_POSTED
+  DEADLINE
+  CAMPUS_NOTICE
+  TICKET_UPDATE
+  LOST_FOUND
+  OFFICE_HOURS
+}
+
+enum TicketCategory {
+  IT
+  TUITION
+  ACADEMIC_REGISTRY
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_STUDENT
+  RESOLVED
+  CLOSED
+}
+
+enum LostFoundKind {
+  LOST
+  FOUND
+}
+
+enum LostFoundStatus {
+  OPEN
+  CLAIM_PENDING
+  RETURNED
+  EXPIRED
+}
+
+enum ClaimStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum SlotStatus {
+  OPEN
+  BOOKED
+  CANCELLED
+}
+
+// ───────────────────────────── People ─────────────────────────────
+
+model User {
+  id                String    @id @default(uuid()) @db.Uuid
+  role              UserRole  @default(STUDENT)
+  // Identity links. ssoSubject stays null until an SSO provider exists.
+  ssoSubject        String?   @unique
+  ssoIssuer         String?
+  moodleUserId      Int?      @unique
+  registryStudentNo String?   @unique // e.g. "B241940012"
+  username          String    @unique
+  email             String    @unique
+  firstName         String
+  lastName          String
+  displayInitials   String    @db.VarChar(4) // "MO" in the top bar
+  avatarUrl         String?
+  locale            Locale    @default(en)
+  programId         String?   @db.Uuid
+  program           Program?  @relation(fields: [programId], references: [id])
+  lastLoginAt       DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?   @db.Uuid
+
+  enrollments        Enrollment[]
+  teaching           CourseInstructor[]
+  grades             Grade[]
+  assignmentScores   AssignmentScore[]
+  notifications      Notification[]
+  announcementReads  AnnouncementRead[]
+  ticketsOpened      Ticket[]            @relation("TicketRequester")
+  ticketsAssigned    Ticket[]            @relation("TicketAssignee")
+  ticketMessages     TicketMessage[]
+  lostFoundItems     LostFoundItem[]     @relation("LostFoundReporter")
+  lostFoundClaims    LostFoundClaim[]    @relation("LostFoundClaimant")
+  claimsVerified     LostFoundClaim[]    @relation("LostFoundVerifier")
+  officeHourSlots    OfficeHourSlot[]    @relation("SlotInstructor")
+  officeHourBookings OfficeHourBooking[]
+  auditLogs          AuditLog[]
+
+  @@index([role, deletedAt])
+  @@index([lastName, firstName])
+}
+
+// ───────────────────────────── Academic structure ─────────────────────────────
+
+model Program {
+  id              String  @id @default(uuid()) @db.Uuid
+  registryCode    String  @unique
+  titleMn         String
+  titleEn         String?
+  requiredCredits Int
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  students     User[]
+  requirements ProgramCourse[]
+}
+
+/// Courses that count towards a programme (for the degree audit).
+model ProgramCourse {
+  programId   String    @db.Uuid
+  courseId    String    @db.Uuid
+  isCore      Boolean   @default(true)
+  plannedYear Int? // 1..4
+  plannedTerm Semester?
+  program     Program   @relation(fields: [programId], references: [id], onDelete: Cascade)
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([programId, courseId])
+  @@index([courseId])
+}
+
+model Department {
+  id        String    @id @default(uuid()) @db.Uuid
+  code      String    @unique
+  nameMn    String // e.g. "СУУРЬ ШИНЖЛЭХ УХААНЫ ТЭНХИМ"
+  nameEn    String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  courses Course[]
+}
+
+model Course {
+  id             String        @id @default(uuid()) @db.Uuid
+  moodleCourseId Int?          @unique
+  code           String // "ECN221"
+  titleMn        String // "БИЗНЕСИЙН СТАТИСТИК" — shown verbatim, never translated
+  titleEn        String?
+  semester       Semester
+  academicYear   String        @db.VarChar(9) // "2026-2027"
+  /// Moodle's term badge text, stored separately because it can disagree with
+  /// `semester` in production (MAT112). See assumptions §7.
+  termBadgeMn    String? // "Намрын улирал"
+  credits        Int           @default(3)
+  headerImageUrl String? // uploaded Moodle course image, if any
+  headerPattern  HeaderPattern @default(BLUE_CIRCLES) // generated fallback
+  status         CourseStatus  @default(ACTIVE)
+  departmentId   String?       @db.Uuid
+  department     Department?   @relation(fields: [departmentId], references: [id])
+  syncedAt       DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?   @db.Uuid
+
+  enrollments     Enrollment[]
+  instructors     CourseInstructor[]
+  assignments     Assignment[]
+  exams           Exam[]
+  sessions        TimetableSession[]
+  announcements   Announcement[]
+  grades          Grade[]
+  programs        ProgramCourse[]
+  /// Courses this course requires (APL121 is a prerequisite of DBM121).
+  prerequisites   CoursePrerequisite[] @relation("CourseRequires")
+  /// Courses that require this course.
+  requiredBy      CoursePrerequisite[] @relation("CourseRequiredBy")
+  officeHourSlots OfficeHourSlot[]
+
+  @@unique([code, academicYear, semester])
+  @@index([status, deletedAt])
+  @@index([academicYear, semester])
+  @@index([code])
+}
+
+/// Directed edge: `course` requires `prerequisite`.
+model CoursePrerequisite {
+  courseId       String  @db.Uuid
+  prerequisiteId String  @db.Uuid
+  /// Minimum letter grade in the prerequisite, e.g. "D". Null = pass.
+  minGrade       String? @db.VarChar(2)
+  /// Prerequisites in the same group are alternatives (OR); different groups are AND.
+  groupNo        Int     @default(1)
+  course         Course  @relation("CourseRequires", fields: [courseId], references: [id], onDelete: Cascade)
+  prerequisite   Course  @relation("CourseRequiredBy", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  createdById String?  @db.Uuid
+
+  @@id([courseId, prerequisiteId])
+  @@index([prerequisiteId])
+}
+
+model CourseInstructor {
+  courseId     String  @db.Uuid
+  userId       String  @db.Uuid
+  isPrimary    Boolean @default(false)
+  displayOrder Int     @default(0)
+  course       Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, userId])
+  @@index([userId])
+}
+
+model Enrollment {
+  id              String         @id @default(uuid()) @db.Uuid
+  userId          String         @db.Uuid
+  courseId        String         @db.Uuid
+  moodleEnrolId   Int?
+  role            EnrollmentRole @default(STUDENT)
+  accessStatus    AccessStatus   @default(NOT_STARTED)
+  progressPercent Int? // null when completion tracking is off
+  lastAccessedAt  DateTime?
+  isFavourite     Boolean        @default(false)
+  isHidden        Boolean        @default(false)
+  enrolledAt      DateTime       @default(now())
+  endsAt          DateTime?
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course          Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  syncedAt        DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([userId, courseId])
+  // My courses query: a student's live enrolments, newest term first.
+  @@index([userId, deletedAt, accessStatus])
+  @@index([courseId, role])
+}
+
+// ───────────────────────────── Grades & assessment ─────────────────────────────
+
+/// One row per (student, course, source). MOODLE = live pill; REGISTRY = official.
+model Grade {
+  id          String      @id @default(uuid()) @db.Uuid
+  userId      String      @db.Uuid
+  courseId    String      @db.Uuid
+  source      GradeSource @default(MOODLE)
+  percentage  Decimal     @db.Decimal(5, 2) // 88.00
+  letterGrade String      @db.VarChar(2) // "A-"
+  gradePoints Decimal?    @db.Decimal(3, 2) // 3.70
+  isFinal     Boolean     @default(false)
+  lastUpdated DateTime // upstream timestamp
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course      Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  syncedAt    DateTime    @default(now())
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([userId, courseId, source])
+  @@index([userId, source, deletedAt])
+}
+
+/// Gradable item with its weight, used by the what-if calculator.
+model Assignment {
+  id            String         @id @default(uuid()) @db.Uuid
+  courseId      String         @db.Uuid
+  moodleItemId  Int?           @unique
+  title         String
+  type          AssignmentType @default(ASSIGNMENT)
+  dueAt         DateTime?
+  /// Share of the final course grade, 0–100. Weights in a course sum to 100.
+  weightPercent Decimal        @db.Decimal(5, 2)
+  maxPoints     Decimal        @default(100) @db.Decimal(7, 2)
+  /// From mdl_grade_categories (replica) — needed for correct what-if maths.
+  categoryName  String?
+  isExtraCredit Boolean        @default(false)
+  course        Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  syncedAt      DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?   @db.Uuid
+
+  scores AssignmentScore[]
+
+  @@index([courseId, dueAt])
+  @@index([dueAt])
+}
+
+/// A student's score on an assignment. Null pointsEarned = pending (what-if input).
+model AssignmentScore {
+  id           String     @id @default(uuid()) @db.Uuid
+  assignmentId String     @db.Uuid
+  userId       String     @db.Uuid
+  pointsEarned Decimal?   @db.Decimal(7, 2)
+  submittedAt  DateTime?
+  gradedAt     DateTime?
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assignmentId, userId])
+  @@index([userId])
+}
+
+model Exam {
+  id         String   @id @default(uuid()) @db.Uuid
+  courseId   String   @db.Uuid
+  registryId String?  @unique
+  type       ExamType
+  startsAt   DateTime // date + start time, stored in UTC; displayed in Asia/Ulaanbaatar
+  endsAt     DateTime
+  room       String // "Б-305"
+  building   String?
+  seatInfo   String?
+  notes      String?
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?   @db.Uuid
+
+  @@index([courseId, startsAt])
+  @@index([startsAt])
+}
+
+/// Weekly timetable entry (subject planner).
+model TimetableSession {
+  id             String      @id @default(uuid()) @db.Uuid
+  courseId       String      @db.Uuid
+  type           SessionType
+  dayOfWeek      Int // 1 = Monday … 7 = Sunday
+  startMinute    Int // minutes after midnight, e.g. 540 = 09:00
+  endMinute      Int
+  room           String
+  instructorName String?
+  groupCode      String? // section, e.g. "01"
+  validFrom      DateTime
+  validTo        DateTime
+  course         Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([courseId])
+  @@index([dayOfWeek, startMinute])
+}
+
+// ───────────────────────────── News & notifications ─────────────────────────────
+
+model Announcement {
+  id          String               @id @default(uuid()) @db.Uuid
+  source      AnnouncementSource
+  category    AnnouncementCategory
+  priority    Priority             @default(NORMAL)
+  titleMn     String
+  titleEn     String?
+  bodyMn      String
+  bodyEn      String?
+  url         String?
+  courseId    String?              @db.Uuid // set for course-scoped notices
+  course      Course?              @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  publishedAt DateTime
+  expiresAt   DateTime?
+  isPinned    Boolean              @default(false)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?   @db.Uuid
+
+  reads AnnouncementRead[]
+
+  @@index([source, publishedAt(sort: Desc)])
+  @@index([priority, publishedAt(sort: Desc)])
+  @@index([courseId])
+}
+
+model AnnouncementRead {
+  announcementId String       @db.Uuid
+  userId         String       @db.Uuid
+  readAt         DateTime     @default(now())
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([announcementId, userId])
+  @@index([userId])
+}
+
+/// The single bell: course alerts and campus notices merged.
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  kind      NotificationKind
+  titleMn   String
+  titleEn   String?
+  bodyMn    String?
+  bodyEn    String?
+  href      String?
+  sourceRef String? // e.g. "moodle:grade:1234", "announcement:<uuid>"
+  readAt    DateTime?
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@unique([userId, sourceRef])
+  @@index([userId, readAt, createdAt(sort: Desc)])
+}
+
+// ───────────────────────────── Campus services ─────────────────────────────
+
+model Ticket {
+  id              String         @id @default(uuid()) @db.Uuid
+  number          Int            @unique @default(autoincrement()) // shown as "HD-1042"
+  requesterId     String         @db.Uuid
+  assigneeId      String?        @db.Uuid
+  category        TicketCategory
+  status          TicketStatus   @default(OPEN)
+  priority        Priority       @default(NORMAL)
+  subject         String
+  description     String
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  requester       User           @relation("TicketRequester", fields: [requesterId], references: [id])
+  assignee        User?          @relation("TicketAssignee", fields: [assigneeId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?   @db.Uuid
+
+  messages TicketMessage[]
+
+  @@index([requesterId, status, updatedAt(sort: Desc)])
+  @@index([category, status, createdAt])
+  @@index([assigneeId, status])
+}
+
+model TicketMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  ticketId       String   @db.Uuid
+  authorId       String   @db.Uuid
+  body           String
+  isInternal     Boolean  @default(false) // staff-only note, never sent to the student
+  attachmentUrls String[]
+  ticket         Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author         User     @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([ticketId, createdAt])
+}
+
+model LostFoundItem {
+  id               String          @id @default(uuid()) @db.Uuid
+  kind             LostFoundKind
+  status           LostFoundStatus @default(OPEN)
+  title            String
+  description      String
+  category         String // "Phone", "ID card", "Keys" …
+  location         String // "Номын сан, 2 давхар"
+  occurredOn       DateTime
+  photoUrls        String[]
+  /// Private detail only the true owner would know; never sent to other students.
+  verificationHint String?
+  reporterId       String          @db.Uuid
+  reporter         User            @relation("LostFoundReporter", fields: [reporterId], references: [id])
+  expiresAt        DateTime
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?   @db.Uuid
+
+  claims LostFoundClaim[]
+
+  @@index([kind, status, occurredOn(sort: Desc)])
+  @@index([reporterId])
+}
+
+model LostFoundClaim {
+  id            String        @id @default(uuid()) @db.Uuid
+  itemId        String        @db.Uuid
+  claimantId    String        @db.Uuid
+  status        ClaimStatus   @default(PENDING)
+  /// Claimant's answer to the verification question.
+  proofText     String
+  proofPhotoUrl String?
+  verifiedById  String?       @db.Uuid
+  verifiedAt    DateTime?
+  item          LostFoundItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  claimant      User          @relation("LostFoundClaimant", fields: [claimantId], references: [id])
+  verifiedBy    User?         @relation("LostFoundVerifier", fields: [verifiedById], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([itemId, claimantId])
+  @@index([status])
+}
+
+model OfficeHourSlot {
+  id           String     @id @default(uuid()) @db.Uuid
+  instructorId String     @db.Uuid
+  courseId     String?    @db.Uuid
+  startsAt     DateTime
+  endsAt       DateTime
+  location     String // room or meeting link
+  isOnline     Boolean    @default(false)
+  capacity     Int        @default(1)
+  status       SlotStatus @default(OPEN)
+  instructor   User       @relation("SlotInstructor", fields: [instructorId], references: [id])
+  course       Course?    @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?   @db.Uuid
+
+  bookings OfficeHourBooking[]
+
+  @@index([instructorId, startsAt])
+  @@index([courseId, startsAt])
+  @@index([status, startsAt])
+}
+
+model OfficeHourBooking {
+  id          String         @id @default(uuid()) @db.Uuid
+  slotId      String         @db.Uuid
+  studentId   String         @db.Uuid
+  topic       String?
+  cancelledAt DateTime?
+  slot        OfficeHourSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  student     User           @relation(fields: [studentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([slotId, studentId])
+  @@index([studentId])
+}
+
+// ───────────────────────────── Audit ─────────────────────────────
+
+/// Append-only. Records reads of grades/GPA and every staff action.
+model AuditLog {
+  id            BigInt   @id @default(autoincrement())
+  actorId       String?  @db.Uuid
+  actor         User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action        String // "grade.read", "ticket.status_changed", "claim.verified"
+  entityType    String
+  entityId      String
+  subjectUserId String?  @db.Uuid // whose data was touched
+  ip            String?  @db.Inet
+  userAgent     String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([subjectUserId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt(sort: Desc)])
+}
