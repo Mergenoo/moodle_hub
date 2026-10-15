@@ -58,10 +58,10 @@ export function AppShell({ student, courses, totalEnrolments, notifications: ini
     { id: "files", label: t("privateFiles"), href: "/files", icon: "files" },
   ];
   const hubNav: NavItemData[] = [
-    { id: "grades", label: t("grades"), href: "/grades", icon: "grades", comingInPhase: 2 },
-    { id: "planner", label: t("planner"), href: "/planner", icon: "planner", comingInPhase: 3 },
-    { id: "news", label: t("news"), href: "/news", icon: "news", comingInPhase: 4 },
-    { id: "services", label: t("services"), href: "/services", icon: "services", comingInPhase: 4 },
+    { id: "grades", label: t("grades"), href: "/grades", icon: "grades" },
+    { id: "planner", label: t("planner"), href: "/planner", icon: "planner" },
+    { id: "news", label: t("news"), href: "/news", icon: "news" },
+    { id: "services", label: t("services"), href: "/services", icon: "services" },
   ];
 
   return (

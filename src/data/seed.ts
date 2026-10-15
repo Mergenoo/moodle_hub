@@ -248,6 +248,7 @@ export const assignments: AssignmentItem[] = [
   { id: "as-1", courseId: "c-ecn221", title: "Бие даалт 1", weightPercent: 15, maxPoints: 100, pointsEarned: 88, dueAt: "2026-10-01T15:00:00Z" },
   { id: "as-2", courseId: "c-ecn221", title: "Явцын шалгалт", weightPercent: 30, maxPoints: 100, pointsEarned: null, dueAt: "2026-10-28T02:00:00Z" },
   { id: "as-3", courseId: "c-ecn221", title: "Төгсгөлийн шалгалт", weightPercent: 40, maxPoints: 100, pointsEarned: null, dueAt: "2026-12-20T02:00:00Z" },
+  { id: "as-5", courseId: "c-ecn221", title: "Хичээлийн оролцоо", weightPercent: 15, maxPoints: 100, pointsEarned: 90, dueAt: null },
   { id: "as-4", courseId: "c-apl121", title: "Лаборатори 3", weightPercent: 10, maxPoints: 20, pointsEarned: null, dueAt: "2026-10-17T15:00:00Z" },
 ];
 
@@ -259,17 +260,22 @@ export const exams: ExamEntry[] = [
 export const timetable: TimetableEntry[] = [
   { id: "tt-1", courseId: "c-ecn221", courseCode: "ECN221", type: "LECTURE", dayOfWeek: 1, startMinute: 9 * 60 + 20, endMinute: 10 * 60 + 50, room: "Б-305", instructorName: "Instructor A" },
   { id: "tt-2", courseId: "c-apl121", courseCode: "APL121", type: "LAB", dayOfWeek: 2, startMinute: 11 * 60, endMinute: 12 * 60 + 30, room: "Лаб-2", instructorName: "Instructor E" },
+  { id: "tt-4", courseId: "c-isa331", courseCode: "ISA331", type: "SEMINAR", dayOfWeek: 4, startMinute: 9 * 60 + 20, endMinute: 10 * 60 + 50, room: "А-305", instructorName: "Instructor G" },
+  { id: "tt-5", courseId: "c-isa332", courseCode: "ISA332", type: "LECTURE", dayOfWeek: 5, startMinute: 12 * 60 + 40, endMinute: 14 * 60 + 10, room: "Б-210", instructorName: "Instructor H" },
   { id: "tt-3", courseId: "c-dbm121", courseCode: "DBM121", type: "LECTURE", dayOfWeek: 3, startMinute: 14 * 60 + 20, endMinute: 15 * 60 + 50, room: "А-210", instructorName: "Instructor F" },
 ];
 
 /** APL121 → DBM121 → ISA331 / ISA332 (from the brief). */
 export const prerequisites: PrerequisiteEdge[] = [
+  { from: "MAT112", to: "ECN221" },
   { from: "APL121", to: "DBM121" },
   { from: "DBM121", to: "ISA331" },
   { from: "DBM121", to: "ISA332" },
 ];
 
 export const degreeAudit: DegreeAuditNode[] = [
+  { code: "MAT112", titleMn: "ХЭРЭГЛЭЭНИЙ МАТЕМАТИК II", credits: 3, status: "COMPLETED" },
+  { code: "ECN221", titleMn: "БИЗНЕСИЙН СТАТИСТИК", credits: 3, status: "IN_PROGRESS" },
   { code: "APL121", titleMn: "АЛГОРИТМ, ПРОГРАМЧЛАЛЫН ХЭЛ", credits: 3, status: "IN_PROGRESS" },
   { code: "DBM121", titleMn: "ӨГӨГДЛИЙН САНГИЙН ҮНДЭС", credits: 3, status: "IN_PROGRESS" },
   { code: "ISA331", titleMn: "СИСТЕМИЙН ШИНЖИЛГЭЭ БА ЗОХИОМЖ", credits: 3, status: "LOCKED" },
