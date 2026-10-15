@@ -62,7 +62,7 @@ export function Sidebar({ primaryNav, hubNav, courses, totalEnrolments, activePa
           </button>
         )}
 
-        <nav aria-label="Primary" className="rounded-card bg-surface p-1 shadow-panel">
+        <nav aria-label="Primary" className="shrink-0 rounded-card bg-surface p-1 shadow-panel">
           <ul className="flex flex-col gap-0.5">
             {primaryNav.map((item) => (
               <NavItem key={item.id} item={item} active={activePath === item.href} />
@@ -70,7 +70,7 @@ export function Sidebar({ primaryNav, hubNav, courses, totalEnrolments, activePa
           </ul>
         </nav>
 
-        <section aria-labelledby="ufe-mycourses" className="flex min-h-0 flex-col rounded-card bg-surface shadow-panel">
+        <section aria-labelledby="ufe-mycourses" className="flex shrink-0 flex-col rounded-card bg-surface shadow-panel">
           <div className="p-1">
             <Link
               id="ufe-mycourses"
@@ -82,7 +82,7 @@ export function Sidebar({ primaryNav, hubNav, courses, totalEnrolments, activePa
               <span className="rounded-button bg-surface-muted px-2 py-0.5 text-meta text-ink">{totalEnrolments}</span>
             </Link>
           </div>
-          <div className="flex max-h-[24rem] min-h-0 flex-col px-0.5">
+          <div className="flex shrink-0 flex-col px-0.5">
             <CourseList
               courses={courses}
               query={query}
@@ -99,7 +99,7 @@ export function Sidebar({ primaryNav, hubNav, courses, totalEnrolments, activePa
           />
         </section>
 
-        <nav aria-label={t("hubSection")} className="rounded-card bg-surface p-1 shadow-panel">
+        <nav aria-label={t("hubSection")} className="shrink-0 rounded-card bg-surface p-1 shadow-panel">
           <p className="px-3 pb-1 pt-3 text-meta font-semibold uppercase tracking-wide text-ink-muted">
             {t("hubSection")}
           </p>
