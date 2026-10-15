@@ -2,25 +2,26 @@
 
 import { useState } from "react";
 import { auditExtra } from "@/data/hubSamples";
+import { plan, semesterLabel, CURRENT_SEMESTER } from "@/data/curriculum";
 import type { DegreeAuditNode, PrerequisiteEdge, TimetableEntry } from "@/types/hub";
 import { MainContent } from "../main/MainContent";
 import { PageHeader } from "../main/PageHeader";
 import { Card, SampleBadge } from "./Section";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-const START = 8 * 60, END = 18 * 60, ROW = 48; // px per hour
+const START = 8 * 60, END = 17 * 60 + 30, ROW = 48; // px per hour
 const typeTint = { LECTURE: "bg-brand-soft text-brand border-brand", LAB: "bg-grade-a-bg text-grade-a-fg border-grade-a-fg", SEMINAR: "bg-grade-c-bg text-grade-c-fg border-grade-c-fg" } as const;
 const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
 function Timetable({ entries }: { entries: TimetableEntry[] }) {
   const [sel, setSel] = useState<TimetableEntry | null>(null);
-  const hours = Array.from({ length: (END - START) / 60 }, (_, i) => START / 60 + i);
+  const hours = Array.from({ length: Math.ceil((END - START) / 60) }, (_, i) => START / 60 + i);
   return (
     <>
       <div className="overflow-x-auto">
         <div className="grid min-w-[40rem]" style={{ gridTemplateColumns: "3rem repeat(5, 1fr)" }} role="table" aria-label="Weekly timetable">
           <div role="row" className="contents">
-            <span role="columnheader" className="sr-only">Time</span>
+            <span role="columnheader" className="border-b border-line"><span className="sr-only">Time</span></span>
             {days.map((d) => <span key={d} role="columnheader" className="border-b border-line pb-2 text-center text-meta font-semibold text-ink-muted">{d}</span>)}
           </div>
           <div className="relative" style={{ height: hours.length * ROW }}>
@@ -88,22 +89,82 @@ function Audit({ nodes, edges }: { nodes: DegreeAuditNode[]; edges: Prerequisite
   );
 }
 
+function chain(code: string, edges: PrerequisiteEdge[]): Set<string> {
+  const out = new Set<string>([code]);
+  const walk = (c: string, dir: "up" | "down") =>
+    edges.filter((e) => (dir === "up" ? e.to === c : e.from === c)).forEach((e) => {
+      const n = dir === "up" ? e.from : e.to;
+      if (!out.has(n)) { out.add(n); walk(n, dir); }
+    });
+  walk(code, "up"); walk(code, "down");
+  return out;
+}
+
+function Curriculum({ nodes, edges, focus, onFocus }: { nodes: DegreeAuditNode[]; edges: PrerequisiteEdge[]; focus: string; onFocus: (c: string) => void }) {
+  const related = chain(focus, edges);
+  return (
+    <div className="overflow-x-auto pb-2">
+      <ol className="grid min-w-[72rem] grid-cols-8 gap-3">
+        {Array.from({ length: 8 }, (_, i) => i + 1).map((sem) => {
+          const list = plan.filter((p) => p.semester === sem);
+          return (
+            <li key={sem} className="flex flex-col gap-2" aria-label={semesterLabel(sem)}>
+              <p className={`text-meta font-semibold ${sem === CURRENT_SEMESTER ? "text-brand" : "text-ink-muted"}`}>
+                {semesterLabel(sem).split(" (")[0]}{sem === CURRENT_SEMESTER ? " · now" : ""}<br />
+                <span className="font-normal">{list.reduce((a, p) => a + p.credits, 0)} credits</span>
+              </p>
+              <ul className="flex flex-col gap-2">
+                {list.map((p) => {
+                  const n = nodes.find((x) => x.code === p.code)!;
+                  return (
+                    <li key={p.code}>
+                      <button type="button" onClick={() => onFocus(p.code)} aria-pressed={focus === p.code}
+                        title={`${p.titleEn} · ${p.credits} credits${p.prereqs.length ? ` · requires ${p.prereqs.join(", ")}` : ""}`}
+                        className={`w-full rounded-card border-2 p-2 text-left text-meta ${statusStyle[n.status]} ${related.has(p.code) ? "ring-2 ring-brand ring-offset-1" : "opacity-80"}`}>
+                        <strong>{p.code}</strong> · {p.credits} cr
+                        <span className="mt-0.5 block leading-snug">{p.titleEn}</span>
+                        <span className="sr-only">{statusText[n.status]}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 export function PlannerView({ timetable, nodes, edges }: { timetable: TimetableEntry[]; nodes: DegreeAuditNode[]; edges: PrerequisiteEdge[] }) {
+  const [focus, setFocus] = useState("ISA331");
   const pct = Math.round((auditExtra.creditsEarned / auditExtra.creditsRequired) * 100);
+  const keep = chain(focus, edges);
+  const fNodes = nodes.filter((n) => keep.has(n.code));
+  const fEdges = edges.filter((e) => keep.has(e.from) && keep.has(e.to));
+  const inProgress = nodes.filter((n) => n.status === "IN_PROGRESS").reduce((a, n) => a + n.credits, 0);
   return (
     <MainContent>
       <PageHeader title="Subject Planner" />
       <SampleBadge />
       <Card title="Weekly timetable"><Timetable entries={timetable} /></Card>
-      <Card title="Degree audit" className="mt-5">
-        <p className="mb-4 text-nav-sm text-ink-secondary">{auditExtra.creditsEarned} of {auditExtra.creditsRequired} credits ({pct}%)</p>
+      <Card title="Computer Science: degree plan" className="mt-5">
+        <p className="mb-1 text-nav-sm text-ink-secondary">
+          {auditExtra.creditsEarned} of {auditExtra.creditsRequired} credits earned ({pct}%) · {inProgress} in progress this term
+        </p>
+        <p className="mb-4 text-meta text-ink-muted">Sample plan: course list, credits and prerequisites are illustrative, not UFE&apos;s official programme.</p>
         <div role="progressbar" aria-label="Degree credits" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} className="mb-6 h-1.5 overflow-hidden rounded-pill bg-progress-track">
           <div className="h-full rounded-pill bg-gradient-to-r from-progress-from to-progress-to" style={{ width: `${pct}%` }} />
         </div>
-        <Audit nodes={nodes} edges={edges} />
+        <Curriculum nodes={nodes} edges={edges} focus={focus} onFocus={setFocus} />
         <ul className="mt-4 flex flex-wrap gap-2 text-meta">
           {(Object.keys(statusText) as (keyof typeof statusText)[]).map((k) => <li key={k} className={`rounded-pill border px-3 py-1 ${statusStyle[k]}`}>{statusText[k]}</li>)}
         </ul>
+      </Card>
+      <Card title={`Prerequisite chain for ${focus}`} className="mt-5">
+        <p className="mb-3 text-nav-sm text-ink-secondary">Select any course in the plan above to see what it needs and what it unlocks.</p>
+        <Audit nodes={fNodes} edges={fEdges} />
       </Card>
     </MainContent>
   );

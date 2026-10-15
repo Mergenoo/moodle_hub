@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { lostFound, officeHours, tickets, type TicketStatus } from "@/data/hubSamples";
+import { ItemPhoto } from "./ItemPhoto";
 import { MainContent } from "../main/MainContent";
 import { PageHeader } from "../main/PageHeader";
 import { Card, SampleBadge, btn, fmtDate } from "./Section";
@@ -42,7 +43,8 @@ export function ServicesView() {
             <ul className="grid gap-4 tablet:grid-cols-2">
               {lostFound.map((i) => (
                 <li key={i.id} className="rounded-card border border-line p-4">
-                  <div className="mb-3 flex h-24 items-center justify-center rounded-button bg-surface-muted text-meta text-ink-muted">Photo</div>
+                  <ItemPhoto art={i.art} label={i.title} />
+                  <span className="block h-3" />
                   <p className="text-nav-sm font-semibold text-ink"><span className={`mr-2 rounded-pill px-2 py-0.5 text-meta ${i.kind === "FOUND" ? "bg-grade-a-bg text-grade-a-fg" : "bg-grade-c-bg text-grade-c-fg"}`}>{i.kind.toLowerCase()}</span>{i.title}</p>
                   <p className="mt-1 text-meta text-ink-muted">{i.place} · {i.date} · {i.status}</p>
                   {i.kind === "FOUND" && i.status === "Open" && <button type="button" className="mt-3 text-nav-sm font-semibold text-brand hover:underline">Claim (answer a verification question)</button>}

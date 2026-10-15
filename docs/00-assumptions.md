@@ -48,3 +48,10 @@ Each item says what I am assuming by default so work can continue. Items marked 
 
 19. Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 with a JS config (`tailwind.config.ts`) loaded via `@config`, so the token deliverable is a real Tailwind config extension. Prisma 7.
 20. The gateway is a REST BFF implemented as Next.js route handlers in Phase 1, extractable to its own service later. GraphQL is not used (REST caches better at the CDN layer for peak weeks).
+
+## F. Sample content added after the first review
+
+21. **The 133-credit Computer Science plan is a sample**, not UFE's official programme (`src/data/curriculum.ts`; run `node src/data/curriculum.ts` to re-check the total). The six production courses and the APL121 → DBM121 → ISA331 / ISA332 chain are kept; everything else is invented. Mongolian titles I wrote for invented courses are drafts for the Registry to confirm. The brief puts APL121 and DBM121 in the same term even though one is a prerequisite of the other, so the plan treats an in-progress prerequisite as acceptable.
+22. The student is shown at the start of semester 5 (Autumn 2026-2027) with 67 of 133 credits earned. CSC301 appears in the timetable and plan but not as a card, since the grid is fixed at the six production courses.
+23. Weekly course content (topics, deadlines, scores) is generated sample data. Grade pills now come from the graded items on each course page, so the pill, course page and GPA simulator agree. ISA332 has no released grades.
+24. Lost & Found pictures are illustrations standing in for uploaded photos.

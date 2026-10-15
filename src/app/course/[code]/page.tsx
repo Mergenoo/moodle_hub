@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CoursePlaceholder } from "@/components/main/CoursePlaceholder";
+import { courseWeeks } from "@/data/seed";
+import { plan } from "@/data/curriculum";
 import { hub } from "@/lib/data";
 
 export async function generateStaticParams() {
@@ -21,5 +23,9 @@ async function CoursePage({ params }: Pick<PageProps<"/course/[code]">, "params"
   const { courses } = await hub.getCourses();
   const course = courses.find((c) => c.href === `/course/${code}`);
   if (!course) notFound();
-  return <CoursePlaceholder course={course} />;
+  return <CoursePlaceholder
+      course={course}
+      weeks={courseWeeks[course.code] ?? null}
+      prereqs={plan.find((p) => p.code === course.code)?.prereqs ?? []}
+    />;
 }

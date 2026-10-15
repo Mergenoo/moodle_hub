@@ -8,6 +8,9 @@
  * Illustrative (marked `demo`): grades, instructor names, Moodle ids, and
  * everything used only by later phases (assignments, exams, timetable).
  */
+import { letterFor } from "@/lib/grades";
+import { buildWeeks, summarize } from "./courseContent";
+import { CURRENT_SEMESTER, plan } from "./curriculum";
 import type {
   Announcement,
   AssignmentItem,
@@ -36,7 +39,7 @@ export const totalEnrolments = 8;
 const autumnBadge = "Намрын улирал";
 const updated = "2026-10-14T08:30:00Z";
 
-export const courses: CourseSummary[] = [
+const baseCourses: CourseSummary[] = [
   {
     id: "c-ecn221",
     moodleCourseId: 2211,
@@ -178,6 +181,19 @@ export const courses: CourseSummary[] = [
   },
 ];
 
+/** Weekly content per course (ISA332: nothing released, so no grade pill). */
+export const courseWeeks = Object.fromEntries(
+  baseCourses.map((c) => [c.code, buildWeeks(c.code, c.moodleCourseId, c.code !== "ISA332")]),
+);
+
+/** Grade pills are computed from graded items so they agree with the course page and simulator. */
+export const courses: CourseSummary[] = baseCourses.map((c) => {
+  const sum = courseWeeks[c.code] && summarize(courseWeeks[c.code]);
+  if (!sum || sum.percentage === null) return { ...c, grade: null };
+  const percentage = Math.round(sum.percentage);
+  return { ...c, grade: { percentage, letter: letterFor(percentage), lastUpdated: updated, source: "moodle" as const, demo: true } };
+});
+
 export const notifications: HubNotification[] = [
   {
     id: "n-1",
@@ -244,40 +260,54 @@ export const announcements: Announcement[] = [
   },
 ];
 
-export const assignments: AssignmentItem[] = [
-  { id: "as-1", courseId: "c-ecn221", title: "Бие даалт 1", weightPercent: 15, maxPoints: 100, pointsEarned: 88, dueAt: "2026-10-01T15:00:00Z" },
-  { id: "as-2", courseId: "c-ecn221", title: "Явцын шалгалт", weightPercent: 30, maxPoints: 100, pointsEarned: null, dueAt: "2026-10-28T02:00:00Z" },
-  { id: "as-3", courseId: "c-ecn221", title: "Төгсгөлийн шалгалт", weightPercent: 40, maxPoints: 100, pointsEarned: null, dueAt: "2026-12-20T02:00:00Z" },
-  { id: "as-5", courseId: "c-ecn221", title: "Хичээлийн оролцоо", weightPercent: 15, maxPoints: 100, pointsEarned: 90, dueAt: null },
-  { id: "as-4", courseId: "c-apl121", title: "Лаборатори 3", weightPercent: 10, maxPoints: 20, pointsEarned: null, dueAt: "2026-10-17T15:00:00Z" },
-];
+export const assignments: AssignmentItem[] = baseCourses.flatMap((c) =>
+  (courseWeeks[c.code] ?? [])
+    .flatMap((w) => w.items)
+    .filter((i) => i.weight)
+    .map((i) => ({
+      id: i.id,
+      courseId: c.id,
+      title: i.title,
+      weightPercent: i.weight!,
+      maxPoints: i.maxPoints!,
+      pointsEarned: i.score ?? null,
+      dueAt: i.dueAt ?? null,
+    })),
+);
 
 export const exams: ExamEntry[] = [
-  { id: "e-1", courseId: "c-ecn221", courseCode: "ECN221", type: "MIDTERM", startsAt: "2026-10-28T02:00:00Z", endsAt: "2026-10-28T03:30:00Z", room: "Б-305" },
-  { id: "e-2", courseId: "c-apl121", courseCode: "APL121", type: "MIDTERM", startsAt: "2026-10-30T05:00:00Z", endsAt: "2026-10-30T06:30:00Z", room: "Лаб-2" },
+  { id: "e-1", courseId: "c-ecn221", courseCode: "ECN221", type: "MIDTERM", startsAt: "2026-10-21T02:00:00Z", endsAt: "2026-10-21T03:30:00Z", room: "Б-305" },
+  { id: "e-2", courseId: "c-apl121", courseCode: "APL121", type: "MIDTERM", startsAt: "2026-10-22T05:00:00Z", endsAt: "2026-10-22T06:30:00Z", room: "Лаб-2" },
 ];
+
+const tt = (
+  n: number, courseId: string, courseCode: string, type: TimetableEntry["type"], dayOfWeek: TimetableEntry["dayOfWeek"],
+  start: [number, number], room: string, instructorName: string,
+): TimetableEntry => ({ id: `tt-${n}`, courseId, courseCode, type, dayOfWeek, startMinute: start[0] * 60 + start[1], endMinute: start[0] * 60 + start[1] + 90, room, instructorName });
 
 export const timetable: TimetableEntry[] = [
-  { id: "tt-1", courseId: "c-ecn221", courseCode: "ECN221", type: "LECTURE", dayOfWeek: 1, startMinute: 9 * 60 + 20, endMinute: 10 * 60 + 50, room: "Б-305", instructorName: "Instructor A" },
-  { id: "tt-2", courseId: "c-apl121", courseCode: "APL121", type: "LAB", dayOfWeek: 2, startMinute: 11 * 60, endMinute: 12 * 60 + 30, room: "Лаб-2", instructorName: "Instructor E" },
-  { id: "tt-4", courseId: "c-isa331", courseCode: "ISA331", type: "SEMINAR", dayOfWeek: 4, startMinute: 9 * 60 + 20, endMinute: 10 * 60 + 50, room: "А-305", instructorName: "Instructor G" },
-  { id: "tt-5", courseId: "c-isa332", courseCode: "ISA332", type: "LECTURE", dayOfWeek: 5, startMinute: 12 * 60 + 40, endMinute: 14 * 60 + 10, room: "Б-210", instructorName: "Instructor H" },
-  { id: "tt-3", courseId: "c-dbm121", courseCode: "DBM121", type: "LECTURE", dayOfWeek: 3, startMinute: 14 * 60 + 20, endMinute: 15 * 60 + 50, room: "А-210", instructorName: "Instructor F" },
+  tt(1, "c-ecn221", "ECN221", "LECTURE", 1, [9, 20], "Б-305", "Instructor A"),
+  tt(2, "c-apl121", "APL121", "LECTURE", 1, [11, 0], "А-201", "Instructor E"),
+  tt(3, "c-csc301", "CSC301", "SEMINAR", 1, [14, 20], "Б-114", "Instructor I"),
+  tt(4, "c-isa331", "ISA331", "LECTURE", 2, [9, 20], "А-305", "Instructor G"),
+  tt(5, "c-apl121", "APL121", "LAB", 2, [11, 0], "Лаб-2", "Instructor E"),
+  tt(6, "c-dbm121", "DBM121", "LAB", 2, [14, 20], "Лаб-3", "Instructor F"),
+  tt(7, "c-ecn221", "ECN221", "SEMINAR", 3, [9, 20], "Б-305", "Instructor B"),
+  tt(8, "c-isa332", "ISA332", "SEMINAR", 3, [11, 0], "Б-210", "Instructor H"),
+  tt(9, "c-dbm121", "DBM121", "LECTURE", 3, [14, 20], "А-210", "Instructor F"),
+  tt(10, "c-isa331", "ISA331", "SEMINAR", 4, [9, 20], "А-305", "Instructor G"),
+  tt(11, "c-csc301", "CSC301", "LECTURE", 4, [11, 0], "Б-114", "Instructor I"),
+  tt(12, "c-ecn221", "ECN221", "LECTURE", 4, [14, 20], "Б-305", "Instructor A"),
+  tt(13, "c-csc301", "CSC301", "LAB", 5, [9, 20], "Лаб-1", "Instructor I"),
+  tt(14, "c-isa332", "ISA332", "LECTURE", 5, [12, 40], "Б-210", "Instructor H"),
 ];
 
-/** APL121 → DBM121 → ISA331 / ISA332 (from the brief). */
-export const prerequisites: PrerequisiteEdge[] = [
-  { from: "MAT112", to: "ECN221" },
-  { from: "APL121", to: "DBM121" },
-  { from: "DBM121", to: "ISA331" },
-  { from: "DBM121", to: "ISA332" },
-];
+/** Prerequisite edges and audit nodes derive from the 133-credit sample plan (curriculum.ts). */
+export const prerequisites: PrerequisiteEdge[] = plan.flatMap((p) => p.prereqs.map((from) => ({ from, to: p.code })));
 
-export const degreeAudit: DegreeAuditNode[] = [
-  { code: "MAT112", titleMn: "ХЭРЭГЛЭЭНИЙ МАТЕМАТИК II", credits: 3, status: "COMPLETED" },
-  { code: "ECN221", titleMn: "БИЗНЕСИЙН СТАТИСТИК", credits: 3, status: "IN_PROGRESS" },
-  { code: "APL121", titleMn: "АЛГОРИТМ, ПРОГРАМЧЛАЛЫН ХЭЛ", credits: 3, status: "IN_PROGRESS" },
-  { code: "DBM121", titleMn: "ӨГӨГДЛИЙН САНГИЙН ҮНДЭС", credits: 3, status: "IN_PROGRESS" },
-  { code: "ISA331", titleMn: "СИСТЕМИЙН ШИНЖИЛГЭЭ БА ЗОХИОМЖ", credits: 3, status: "LOCKED" },
-  { code: "ISA332", titleMn: "БИЗНЕСИЙН ШИНЖИЛГЭЭ", credits: 3, status: "LOCKED" },
-];
+export const degreeAudit: DegreeAuditNode[] = plan.map((p) => {
+  const done = (code: string) => plan.find((x) => x.code === code)!.semester < CURRENT_SEMESTER;
+  const status: DegreeAuditNode["status"] =
+    p.semester < CURRENT_SEMESTER ? "COMPLETED" : p.semester === CURRENT_SEMESTER ? "IN_PROGRESS" : p.prereqs.every(done) ? "AVAILABLE" : "LOCKED";
+  return { code: p.code, titleMn: p.titleMn, credits: p.credits, status };
+});

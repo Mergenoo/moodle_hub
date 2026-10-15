@@ -5,7 +5,7 @@
 export const DEMO_NOW = "2026-10-15T09:00:00Z";
 
 /** Registry history before the current term (credits, credit-weighted GPA). */
-export const priorRecord = { credits: 51, gpa: 3.45 };
+export const priorRecord = { credits: 67, gpa: 3.45 };
 
 export type TicketStatus = "OPEN" | "IN_PROGRESS" | "WAITING_ON_STUDENT" | "RESOLVED";
 export const tickets = [
@@ -14,11 +14,14 @@ export const tickets = [
   { id: "HD-1021", category: "Academic Registry", subject: "Transcript copy request", status: "RESOLVED" as TicketStatus, updated: "2026-10-09T09:45:00Z", assignee: "Academic Registry" },
 ];
 
+export type LostFoundArt = "wallet" | "card" | "umbrella" | "usb" | "keys" | "phone";
 export const lostFound = [
-  { id: "lf-1", kind: "FOUND" as const, title: "Black wallet", place: "Номын сан, 2 давхар", date: "2026-10-14", status: "Open" },
-  { id: "lf-2", kind: "LOST" as const, title: "Student card (Б2419…)", place: "А байр, 1-р давхар", date: "2026-10-13", status: "Claim pending" },
-  { id: "lf-3", kind: "FOUND" as const, title: "Blue umbrella", place: "Цайны газар", date: "2026-10-12", status: "Open" },
-  { id: "lf-4", kind: "LOST" as const, title: "USB drive, 64 GB", place: "Лаб-2", date: "2026-10-10", status: "Returned" },
+  { id: "lf-1", kind: "FOUND" as const, art: "wallet" as LostFoundArt, title: "Black wallet", place: "Номын сан, 2 давхар", date: "2026-10-14", status: "Open" },
+  { id: "lf-2", kind: "LOST" as const, art: "card" as LostFoundArt, title: "Student card (Б2419…)", place: "А байр, 1-р давхар", date: "2026-10-13", status: "Claim pending" },
+  { id: "lf-3", kind: "FOUND" as const, art: "umbrella" as LostFoundArt, title: "Blue umbrella", place: "Цайны газар", date: "2026-10-12", status: "Open" },
+  { id: "lf-4", kind: "LOST" as const, art: "usb" as LostFoundArt, title: "USB drive, 64 GB", place: "Лаб-2", date: "2026-10-10", status: "Returned" },
+  { id: "lf-5", kind: "FOUND" as const, art: "keys" as LostFoundArt, title: "Keys with red tag", place: "Б байр, үүдний хаалга", date: "2026-10-09", status: "Open" },
+  { id: "lf-6", kind: "FOUND" as const, art: "phone" as LostFoundArt, title: "Phone in grey case", place: "Лекцийн танхим Б-305", date: "2026-10-08", status: "Open" },
 ];
 
 export const officeHours = [
@@ -29,4 +32,4 @@ export const officeHours = [
 ];
 
 /** Prior courses so the audit chart has completed nodes and a credit total. */
-export const auditExtra = { creditsRequired: 120, creditsEarned: 51 };
+export const auditExtra = { creditsRequired: 133, creditsEarned: 67 };

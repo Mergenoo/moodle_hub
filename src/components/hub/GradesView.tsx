@@ -31,7 +31,7 @@ export function GradesView({ courses, assignments, exams }: { courses: CourseSum
       <div className="grid gap-5 tablet:grid-cols-3">
         <Stat label="Cumulative GPA" value={cumulativeGpa(lines).toFixed(2)} hint="Official, registry · scale 4.0" />
         <Stat label="Term GPA (Autumn 2026-2027)" value={termGpa(lines).toFixed(2)} hint="Provisional, from Moodle grades" />
-        <Stat label="Credits earned" value={`${priorRecord.credits} / 120`} hint="Registry" />
+        <Stat label="Credits earned" value={`${priorRecord.credits} / 133`} hint="Registry" />
       </div>
       <div className="mt-5 grid gap-5 laptop:grid-cols-2">
         <Card title="Current grades">
