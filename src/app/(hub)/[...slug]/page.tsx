@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { ComingSoon } from "@/components/main/ComingSoon";
 import type { MessageKey } from "@/lib/i18n";
 
@@ -18,7 +19,15 @@ export function generateStaticParams() {
   return Object.keys(sections).map((s) => ({ slug: [s] }));
 }
 
-export default async function Section({ params }: PageProps<"/[...slug]">) {
+export default function Page({ params }: PageProps<"/[...slug]">) {
+  return (
+    <Suspense fallback={null}>
+      <Section params={params} />
+    </Suspense>
+  );
+}
+
+async function Section({ params }: Pick<PageProps<"/[...slug]">, "params">) {
   const { slug } = await params;
   const section = slug.length === 1 ? sections[slug[0]] : undefined;
   if (!section) notFound();
